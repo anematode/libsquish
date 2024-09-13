@@ -26,10 +26,8 @@
 #ifndef SQUISH_SIMD_SSE_H
 #define SQUISH_SIMD_SSE_H
 
-#include <xmmintrin.h>
-#if ( SQUISH_USE_SSE > 1 )
 #include <emmintrin.h>
-#endif
+#include <wasm_simd128.h>
 
 #define SQUISH_SSE_SPLAT( a )                                        \
     ( ( a ) | ( ( a ) << 2 ) | ( ( a ) << 4 ) | ( ( a ) << 6 ) )
@@ -114,61 +112,39 @@ public:
     //! Returns a*b + c
     friend Vec4 MultiplyAdd( Vec4::Arg a, Vec4::Arg b, Vec4::Arg c )
     {
-        return Vec4( _mm_add_ps( _mm_mul_ps( a.m_v, b.m_v ), c.m_v ) );
+        return Vec4( wasm_f32x4_relaxed_madd(a.m_v, b.m_v, c.m_v) );  // (a*b)+c
     }
 
     //! Returns -( a*b - c )
     friend Vec4 NegativeMultiplySubtract( Vec4::Arg a, Vec4::Arg b, Vec4::Arg c )
     {
-        return Vec4( _mm_sub_ps( c.m_v, _mm_mul_ps( a.m_v, b.m_v ) ) );
+        return Vec4( wasm_f32x4_relaxed_nmadd(a.m_v, b.m_v, c.m_v) );  // -(a*b) + c
     }
 
     friend Vec4 Reciprocal( Vec4::Arg v )
     {
-        // get the reciprocal estimate
-        __m128 estimate = _mm_rcp_ps( v.m_v );
-
-        // one round of Newton-Rhaphson refinement
-        __m128 diff = _mm_sub_ps( _mm_set1_ps( 1.0f ), _mm_mul_ps( estimate, v.m_v ) );
-        return Vec4( _mm_add_ps( _mm_mul_ps( diff, estimate ), estimate ) );
+        return Vec4(_mm_div_ps(_mm_set1_ps(1.0f), v.m_v));
     }
 
     friend Vec4 Min( Vec4::Arg left, Vec4::Arg right )
     {
-        return Vec4( _mm_min_ps( left.m_v, right.m_v ) );
+        return Vec4( wasm_f32x4_relaxed_min( left.m_v, right.m_v ) );
     }
 
     friend Vec4 Max( Vec4::Arg left, Vec4::Arg right )
     {
-        return Vec4( _mm_max_ps( left.m_v, right.m_v ) );
+        return Vec4( wasm_f32x4_relaxed_max( left.m_v, right.m_v ) );
     }
 
     friend Vec4 Truncate( Vec4::Arg v )
     {
-#if ( SQUISH_USE_SSE == 1 )
-        // convert to ints
-        __m128 input = v.m_v;
-        __m64 lo = _mm_cvttps_pi32( input );
-        __m64 hi = _mm_cvttps_pi32( _mm_movehl_ps( input, input ) );
-
-        // convert to floats
-        __m128 part = _mm_movelh_ps( input, _mm_cvtpi32_ps( input, hi ) );
-        __m128 truncated = _mm_cvtpi32_ps( part, lo );
-
-        // clear out the MMX multimedia state to allow FP calls later
-        _mm_empty();
-        return Vec4( truncated );
-#else
-        // use SSE2 instructions
-        return Vec4( _mm_cvtepi32_ps( _mm_cvttps_epi32( v.m_v ) ) );
-#endif
+        return Vec4( wasm_f32x4_trunc( v.m_v ) );
     }
 
     friend bool CompareAnyLessThan( Vec4::Arg left, Vec4::Arg right )
     {
         __m128 bits = _mm_cmplt_ps( left.m_v, right.m_v );
-        int value = _mm_movemask_ps( bits );
-        return value != 0;
+        return wasm_v128_any_true(bits);
     }
 
 private:

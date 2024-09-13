@@ -113,6 +113,11 @@ void Decompress( float* bgra, void const* block, int flags )
         DecompressAlphaDxt5( bgra, alphaBock );
 }
 
+} // namespace squish
+
+using namespace squish;
+
+extern "C" {
 int GetStorageRequirements( int width, int height, int flags )
 {
     // fix any bad flags
@@ -227,7 +232,7 @@ void DecompressImage( float* bgra, int width, int height, void const* blocks, in
     }
 }
 
-} // namespace squish
+} // extern "C"
 
 void squishCompressMasked( float const* bgra, int mask, void* block, int flags, float* metric )
 {
