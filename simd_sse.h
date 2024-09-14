@@ -35,6 +35,8 @@
 #define SQUISH_SSE_SHUF( x, y, z, w )                                \
     ( ( x ) | ( ( y ) << 2 ) | ( ( z ) << 4 ) | ( ( w ) << 6 ) )
 
+// #define USE_RELAXED_SIMD 1
+
 namespace squish {
 
 #define VEC4_CONST( X ) Vec4( X )
@@ -112,13 +114,25 @@ public:
     //! Returns a*b + c
     friend Vec4 MultiplyAdd( Vec4::Arg a, Vec4::Arg b, Vec4::Arg c )
     {
-        return Vec4( wasm_f32x4_relaxed_madd(a.m_v, b.m_v, c.m_v) );  // (a*b)+c
+#ifdef USE_RELAXED_SIMD
+        return Vec4(
+			wasm_f32x4_relaxed_madd(a.m_v, b.m_v, c.m_v)
+		);
+#else
+		return a * b + c;
+#endif
     }
 
     //! Returns -( a*b - c )
     friend Vec4 NegativeMultiplySubtract( Vec4::Arg a, Vec4::Arg b, Vec4::Arg c )
     {
-        return Vec4( wasm_f32x4_relaxed_nmadd(a.m_v, b.m_v, c.m_v) );  // -(a*b) + c
+#ifdef USE_RELAXED_SIMD
+        return Vec4(
+			wasm_f32x4_relaxed_nmadd(a.m_v, b.m_v, c.m_v)
+		);
+#else
+		return c - a * b;
+#endif
     }
 
     friend Vec4 Reciprocal( Vec4::Arg v )
@@ -128,12 +142,24 @@ public:
 
     friend Vec4 Min( Vec4::Arg left, Vec4::Arg right )
     {
-        return Vec4( wasm_f32x4_relaxed_min( left.m_v, right.m_v ) );
+        return Vec4(
+#ifdef USE_RELAXED_SIMD
+			wasm_f32x4_relaxed_min( left.m_v, right.m_v )
+#else
+			_mm_min_ps(left.m_v, right.m_v)
+#endif
+);
     }
 
     friend Vec4 Max( Vec4::Arg left, Vec4::Arg right )
     {
-        return Vec4( wasm_f32x4_relaxed_max( left.m_v, right.m_v ) );
+        return Vec4(
+#ifdef USE_RELAXED_SIMD
+			wasm_f32x4_relaxed_max( left.m_v, right.m_v )
+#else
+			_mm_max_ps(left.m_v, right.m_v)
+#endif
+	);
     }
 
     friend Vec4 Truncate( Vec4::Arg v )
